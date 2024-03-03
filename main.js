@@ -4,36 +4,61 @@ const ctx = cvs.getContext('2d');
 
 // Snake body
 const snake = [];
-const head = [5, 5];
+const head = {x: 5, y: 5};
 
 // Snake growth
 let growth = 0;
-const growth_per_apple = 5;
+const growthPerApple = 5;
 
 // Game values
-let direction = 'ArrowRight';
+let direction = 'right';
 let ongoing_game = true;
 let score = 0;
-const score_per_apple = 100;
+const scorePerApple = 100;
+const fps = 24;
 
 // Visuals
-const snake_color = '#0B0';
-const snake_dead_color = '#AAA';
-const apple_colors = ['#F22', '#FF0', '#0FF', '#F0F'];
+const color = {
+    snake: {
+        alive: '#0B0',
+        dead: '#AAA'
+    },
+    apple: [
+        '#F22', 
+        '#FF0', 
+        '#0FF', 
+        '#F0F'
+    ],
+    background: '#333'
+}
+
 function randomAppleColor() {
-    return apple_colors[Math.floor(Math.random() * apple_colors.length)];
+    return choice(color.apple);
 }
 
 // Utility functions
+function random(max) {
+    return Math.floor(Math.random() * max);
+}
+
 function randomPosition() {
-    const x = Math.floor(Math.random() * cvs.width);
-    const y = Math.floor(Math.random() * cvs.height);
-    return [x, y];
+    const x = random(cvs.width);
+    const y = random(cvs.height);
+    return {x, y};
+}
+
+function isSamePosition(a, b) {
+    return a.x === b.x && a.y === b.y;
+}
+
+function choice(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
 }
 
 // Food pieces
 const apples = [];
-for (let i = 0; i < 100; i ++) {
+const appleCount = 100;
+for (let i = 0; i < appleCount; i ++) {
     apples.push({
         position: randomPosition(),
         color: randomAppleColor()
@@ -41,28 +66,52 @@ for (let i = 0; i < 100; i ++) {
 };
 
 // Keyboard Inputs
-const validDirections = ['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown'];
-document.body.onkeydown = function(event) {
-    // Only register if it's in the valid inputs for moving the snake
-    if (validDirections.includes(direction)) {
-        direction = event.key;
-    }
-};
+const directionMapping = {
+    ArrowRight: 'right',
+    ArrowLeft: 'left',
+    ArrowUp: 'up',
+    ArrowDown: 'down',
+    a: 'left',
+    d: 'right',
+    w: 'up',
+    s: 'down',
+}
+
+// Opposite directions
+const oppositeDirections = {
+    right: 'left',
+    left: 'right',
+    up: 'down',
+    down: 'up',
+}
+
+document.addEventListener('keydown', (event) => {
+    // Check if the key is a valid direction
+    if (!Object.keys(directionMapping).includes(event.key)) return;
+
+    const newDirection = directionMapping[event.key];
+
+    // Prevent the snake from going into the opposite direction
+    if (direction === oppositeDirections[newDirection]) return;
+
+    // Change the direction
+    direction = newDirection;
+});
 
 // This runs every frame
 function animate() {
-    ctx.clearRect(0, 0, cvs.width, cvs.height);
-    
-    // Draw the body pieces
-    if (ongoing_game) {
-        ctx.fillStyle = snake_color;
-    } else {
-        ctx.fillStyle = snake_dead_color;
-    };
-    snake.forEach((bodypart) => {
-        ctx.fillRect(bodypart[0], bodypart[1], 1, 1);
+    // Draw the background
+    ctx.fillStyle = color.background;
+    ctx.fillRect(0, 0, cvs.width, cvs.height);
 
-        if (bodypart[0] == head[0] && bodypart[1] == head[1]) {
+    // Draw the body pieces
+    ctx.fillStyle = color.snake[ongoing_game ? 'alive' : 'dead'];
+
+    snake.forEach((bodyPart) => {
+        ctx.fillRect(bodyPart.x, bodyPart.y, 1, 1);
+
+        // Check if the snake is touching itself
+        if (isSamePosition(bodyPart, head)) {
             ongoing_game = false;
         };
     });
@@ -70,17 +119,17 @@ function animate() {
     // Draw the apples
     apples.forEach((apple) => {
         ctx.fillStyle = apple.color;
-        ctx.fillRect(apple.position[0], apple.position[1], 1, 1);
+        
+        ctx.fillRect(apple.position.x, apple.position.y, 1, 1);
 
-        if (apple.position[0] == head[0] && apple.position[1] == head[1]) {
+        // Check if the snake is touching the apple
+        if (isSamePosition(apple.position, head)) {
             // Change the apple position
-            const random = randomPosition();
-            apple.position[0] = random[0];
-            apple.position[1] = random[1];
+            apple.position = randomPosition();
 
             // Let the snake grow
-            growth += growth_per_apple;
-            score += score_per_apple;
+            growth += growthPerApple;
+            score += scorePerApple;
         };
     });
 
@@ -88,43 +137,49 @@ function animate() {
     if (growth > 0) {
         growth --;
     } else {
+        // Remove the tail
         snake.splice(0, 1);
     };
 
     if (ongoing_game) {
         // Draw the head
-        ctx.fillStyle = snake_color;
-        ctx.fillRect(head[0], head[1], 1, 1);
+        ctx.fillStyle = color.snake.alive;
+        ctx.fillRect(head.x, head.y, 1, 1);
 
-        // Spawn another body piece at the head
-        snake.push([head[0], head[1]]);
+        // Spawn another body piece at the head, clone it to prevent it from moving with the head
+        snake.push(JSON.parse(JSON.stringify(head)));
     
         // Move the head into the direction
         switch (direction) {
-            case 'ArrowRight':
-                head[0] ++;
+            case 'right':
+                head.x ++;
                 break;
-            case 'ArrowLeft':
-                head[0] --;
+            case 'left':
+                head.x --;
                 break;
-            case 'ArrowUp':
-                head[1] --;
+            case 'up':
+                head.y --;
                 break;
-            case 'ArrowDown':
-                head[1] ++;
+            case 'down':
+                head.y ++;
                 break;
         };
         
         // Check if touching the outer edges
-        if (head[0] < 0 || head[0] > cvs.width || head[1] < 0 || head[1] > cvs.height) {
+        if (
+            head.x < 0 || head.x > cvs.width || 
+            head.y < 0 || head.y > cvs.height
+        ) {
             ongoing_game = false;
         };
-    } else if (snake.length == 0) {
+    } else if (snake.length === 0) {
         // When all snake body pieces have disappeared, display score and reload the page to restart the game
         alert("You died! Your final score: " + score);
+        
+        // Reset the game
         location.reload();
     }
 };
 
-// Run the game at 24 FPS
-setInterval(animate, 1000 / 24)
+// Run the game loop
+setInterval(animate, 1000 / fps)
